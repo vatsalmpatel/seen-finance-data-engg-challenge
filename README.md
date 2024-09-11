@@ -74,3 +74,20 @@ query as(
 --select * from stddev_per_cust_calc;
 select * from query where flagged_trans = 1;
 ```
+
+3. Using the data in “page_view_events”, what are the 5 most common paths that people follow in the app?
+
+- Now, here I am thinking of two approaches, first approach is looking at just single paths such as `/input-email` or `/product-disclosures` and then use DENSE_RANK() to rank each path by its count in descending order and then return all the paths that have `rank <= 5`. But, this would be too simple of an approach, and too basic in a sense that it does not provide enough insight about the paths that people follow, it just gives us how many people landed on this particular path. But anyways, here is the SQL query of the first approach:
+
+```SQL
+with query as(
+	select path, count(*) as total_visits,
+	DENSE_RANK() OVER(order by count(*) desc) as rnk
+	from page_view_events
+	group by path
+)
+select * from query where rnk <= 5;
+```
+
+- Ofcourse, the second approach would be to look at pairs of paths, such as going from `/product-disclosures` to `/input-email` or going from `/input-email` to `/input-password` and so on. This approach would give us a better insight on how many people actually went on from one path to another, and getting the top 5 most visited paths out of this would tell us what are some of the most common steps people tend to complete when applying for a credit card and what are some of the steps (if we look at the rest of the result) that people do not reach or do not complete, where this relates a bit to `conversion`, as to how many people actually convert from one step to another and what steps do we still need to work on or follow up on the user to remind them to complete the remaining steps.
+
