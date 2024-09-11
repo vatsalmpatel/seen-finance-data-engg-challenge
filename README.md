@@ -89,5 +89,23 @@ with query as(
 select * from query where rnk <= 5;
 ```
 
-- Ofcourse, the second approach would be to look at pairs of paths, such as going from `/product-disclosures` to `/input-email` or going from `/input-email` to `/input-password` and so on. This approach would give us a better insight on how many people actually went on from one path to another, and getting the top 5 most visited paths out of this would tell us what are some of the most common steps people tend to complete when applying for a credit card and what are some of the steps (if we look at the rest of the result) that people do not reach or do not complete, where this relates a bit to `conversion`, as to how many people actually convert from one step to another and what steps do we still need to work on or follow up on the user to remind them to complete the remaining steps.
+- Ofcourse, the second approach would be to look at pairs of paths, such as going from `/product-disclosures` to `/input-email` or going from `/input-email` to `/input-password` and so on. This approach would give us a better insight on how many people actually went on from one path to another, and getting the top 5 most visited paths out of this would tell us what are some of the most common steps people tend to complete when applying for a credit card and what are some of the steps (if we look at the rest of the result) that people do not reach or do not complete, where this relates a bit to `conversion`, as to how many people actually convert from one step to another and what steps do we still need to work on or follow up on the user to remind them to complete the remaining steps. Now, this could be extended to 3 paths, 4 paths and beyond, but I think that would be repition of code, with some minor changes, so I will restrict myself to 2 paths (pair of path such as `/product-disclosures` to `/input-email`) and then explain what is needed to be done to get three or more paths.
 
+####  Incomplete
+```
+with query1 as(
+	select pve.visitor_id,
+	pve.path,
+	ROW_NUMBER() OVER(partition by pve.visitor_id order by pve.event_time) as rnk
+	from page_view_events pve
+),
+query as(
+	select a.path as p1,
+	b.path as p2,
+	count(*) as 'number_of_movements'
+	from query1 a inner join query1 b on 
+	a.visitor_id = b.visitor_id and a.rnk = b.rnk - 1
+	group by 1,2
+)
+select CONCAT(p1," to ",p2) as "path",number_of_movements  from query order by number_of_movements desc;
+```
