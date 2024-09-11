@@ -75,7 +75,7 @@ query as(
 select * from query where flagged_trans = 1;
 ```
 
-3. Using the data in “page_view_events”, what are the 5 most common paths that people follow in the app?
+### 3. Using the data in “page_view_events”, what are the 5 most common paths that people follow in the app?
 
 - Now, here I am thinking of two approaches, first approach is looking at just single paths such as `/input-email` or `/product-disclosures` and then use DENSE_RANK() to rank each path by its count in descending order and then return all the paths that have `rank <= 5`. But, this would be too simple of an approach, and too basic in a sense that it does not provide enough insight about the paths that people follow, it just gives us how many people landed on this particular path. But anyways, here is the SQL query of the first approach:
 
@@ -114,11 +114,83 @@ where d_rnk <= 5;
 - For three or more paths, what you would need to is join again with `query1` and the join would look something like this, and then the number of joins would increase by the number of paths:
 
 ```SQL
--- This is just a part of the logic that would need to change, reest of the query remains the same.
+-- This is just a part of the logic that would need to change, reest of the query remains the same. This QUERY WILL NOT RUN, THIS IS JUST AN EXAMPLE.
 with query as(
 	select a.path as p1, b.path as p2, c3.path as p3, count(*) as 'number_of_movements', DENSE_RANK() OVER(order by COUNT(*) DESC) as d_rnk
 	from query1 a inner join query1 b on a.visitor_id = b.visitor_id and a.rnk = b.rnk - 1
 	inner join query1 c on b.visitor_id = c.visitor_id and b.rnk = c.rnk - 1
 	group by 1,2,3
 )
+```
+
+### 4. Using the data in “page_view_events”, write a query that can be used to display the following funnel. The funnel above shows how many people entered a step, and the percentage which dropped off before the next step.
+
+1. /product-disclosures
+2. /input-email
+3. /input-password
+4. /verify-email
+5. /input-phone
+6. /input-sms
+7. /kyc-info
+8. /input-name
+9. /input-address
+10. /date-of-birth
+11. /input-ssn
+12. /input-income
+13. /confirm-details
+
+- My approach here was to first create a look-up table, as we already know that this is the path that users should follow, we can make this a separate look-up table. Query to create a look-up table is as follows, and you need to run this first, because it is going to be used in the final query:
+
+```SQL
+CREATE TABLE IF NOT EXISTS user_path (
+	 path_number NUMBER,
+	 path_name STRING
+);
+
+INSERT INTO user_path values
+(1,"/product-disclosures"),
+(2,"/input-email"),
+(3,"/input-password"),
+(4,"/verify-email"),
+(5,'/input-phone'),
+(6,"/input-sms"),
+(7,"/kyc-info"),
+(8,"/input-name"),
+(9,"/input-address"),
+(10,'/date-of-birth'),
+(11,"/input-ssn"),
+(12,"/input-income"),
+(13,"/confirm-details");
+```
+
+- Now using this as the look-up table, we first give each visitor's visit to a specific path a number, ordered by the `event_time` in the CTE `each_visitor_path_seq`. This will help us ensure that the user follows the sequence of paths correctly. In the `count_visitor_by_correct_path` CTE, we count the number of visitors per path and make sure that the sequence of paths is followed by each user. And lastly, in the `drop_off_calc` CTE, we calculate the drop off percentage of number of visitors that dropped of before the next step. Naturally, the last path `/confirm-details` will have `NULL` as drop off percentage, because there are no other steps after this and we can't calculate how many visitors dropped off before going to the next step, and I replace that with `0`.
+
+```SQL
+with each_visitor_path_seq as(
+	select up.path_number, up.path_name,
+	pve.visitor_id,
+	ROW_NUMBER() OVER(partition by pve.visitor_id order by pve.event_time) as step_number
+	from
+	page_view_events pve 
+	inner join
+	user_path up on up.path_name = pve.path
+),
+--select * from each_visitor_path_seq;
+count_visitor_by_correct_path as(
+	select evps.path_number, evps.path_name,
+	COUNT(DISTINCT evps.visitor_id) as num_visitors
+	from each_visitor_path_seq evps
+	where step_number = path_number
+	group by path_number
+),
+-- select * from count_visitor_by_correct_path
+drop_off_calc as(
+	select a.path_number, a.path_name,
+	a.num_visitors,
+	IFNULL(ROUND(((a.num_visitors - b.num_visitors) * 100.0 / (a.num_visitors)),3),0) as drop_off_perc
+	from count_visitor_by_correct_path a
+	left join count_visitor_by_correct_path b on a.path_number = b.path_number - 1
+	order by a.path_number
+)
+select * from drop_off_calc;
 ```
