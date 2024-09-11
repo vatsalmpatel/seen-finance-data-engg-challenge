@@ -1,3 +1,5 @@
+# Seen Data Engineering SQL Challenge
+
 ### 1. Write a query to determine the total balances each customer owes at the end of each day. Output columns should include: customer_id , snapshot_date , customer_balance
 
 - Approach 1 is just a pure customer_balance at the end of each day. 
