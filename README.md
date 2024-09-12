@@ -111,17 +111,28 @@ select CONCAT(p1," to ",p2) as "path",number_of_movements from query
 where d_rnk <= 5;
 ```
 
-- For three or more paths, what you would need to is join again with `query1` and the join would look something like this, and then the number of joins would increase by the number of paths:
+- After doubt clarification from Brendan, I was supposed to consider full-paths, not just dual paths, so here is the query that conssiders full uer path, rather than just considering dual paths. This give us much more clarification on what complete paths user follow.
 
 ```SQL
--- This is just a part of the logic that would need to change, reest of the query remains the same. This QUERY WILL NOT RUN, THIS IS JUST AN EXAMPLE.
-with query as(
-	select a.path as p1, b.path as p2, c3.path as p3, count(*) as 'number_of_movements', DENSE_RANK() OVER(order by COUNT(*) DESC) as d_rnk
-	from query1 a inner join query1 b on a.visitor_id = b.visitor_id and a.rnk = b.rnk - 1
-	inner join query1 c on b.visitor_id = c.visitor_id and b.rnk = c.rnk - 1
-	group by 1,2,3
+with complete_paths_cte as(
+	select STRING_AGG(pve.path, " to " order by pve.event_time) as "complete_user_path",
+	pve.visitor_id
+	from page_view_events pve
+	group by visitor_id
+),
+user_path_cnt as(
+	select cpc.complete_user_path,
+	COUNT(*) as total_path_visits,
+	DENSE_RANK() OVER(order by count(*) desc) as rnk
+	from
+	complete_paths_cte cpc
+	group by 1
 )
+select complete_user_path, total_path_visits
+from user_path_cnt
+where rnk <= 5;
 ```
+
 
 ### 4. Using the data in “page_view_events”, write a query that can be used to display the following funnel. The funnel above shows how many people entered a step, and the percentage which dropped off before the next step.
 
