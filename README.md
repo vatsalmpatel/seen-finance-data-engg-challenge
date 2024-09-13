@@ -4,6 +4,7 @@
 
 - Approach 1 is just a pure customer_balance at the end of each day. 
 
+## Final Solution for Q1 below block:
 ```SQL
 with query as(
 	select acct.customer_id,
@@ -44,6 +45,7 @@ select customer_id, snapshot_date, customer_balance from query order by customer
 
 - As the definition of unusual transactions is left undefined, I defined unusual transaction as those transaction, which are atleast three standard deviations away from the mean. Now, this was a bit long calculation, as SQLite does not provide any function to get the standard deviation, and when I tried calculating standard deviation and mean together, it gave me an error. So I had to calculate the mean (avegare) and the standard deviation in two different cte's, and then combine together in the third cte, to get all the transacitons that are three standard deviations away from the mean. I calculate a new column called `flagged_trans` and it is set to 1 if the transaction is atleast 3 standard deviations away from the mean (I had to google the formula for standard deviation). I am only showing transactions where `flagged_trans = 1`. Feel free to remove that condition and check the entire output.
 
+## Final Solution for Q2 is the below block:
 ```SQL
 with avg_per_cust_calc as(
 	select customer_id,
@@ -113,6 +115,7 @@ where d_rnk <= 5;
 
 - After doubt clarification from Brendan, I was supposed to consider full-paths, not just dual paths, so here is the query that conssiders full uer path, rather than just considering dual paths. This give us much more clarification on what complete paths user follow.
 
+## Final Solution for Q3 is the below block:
 ```SQL
 with complete_paths_cte as(
 	select STRING_AGG(pve.path, " to " order by pve.event_time) as "complete_user_path",
@@ -151,6 +154,7 @@ where rnk <= 5;
 
 - My approach here was to first create a look-up table, as we already know that this is the path that users should follow, we can make this a separate look-up table. Query to create a look-up table is as follows, and you need to run this first, because it is going to be used in the final query:
 
+## Final Solution for Q4 is the below block, run the create table query first and then run the SQL block after the explanation to get the final result
 ```SQL
 CREATE TABLE IF NOT EXISTS user_path (
 	 path_number NUMBER,
@@ -175,6 +179,7 @@ INSERT INTO user_path values
 
 - Now using this as the look-up table, we first give each visitor's visit to a specific path a number, ordered by the `event_time` in the CTE `each_visitor_path_seq`. This will help us ensure that the user follows the sequence of paths correctly. In the `count_visitor_by_correct_path` CTE, we count the number of visitors per path and make sure that the sequence of paths is followed by each user. And lastly, in the `drop_off_calc` CTE, we calculate the drop off percentage of number of visitors that dropped of before the next step. Naturally, the last path `/confirm-details` will have `NULL` as drop off percentage, because there are no other steps after this and we can't calculate how many visitors dropped off before going to the next step, and I replace that with `0`.
 
+## Second part of the solution that you need to run, this contains all the calculations:
 ```SQL
 with each_visitor_path_seq as(
 	select up.path_number, up.path_name,
@@ -211,6 +216,7 @@ select * from drop_off_calc;
 
 - The approach for this query was to fill in the gaps where the `days_past_due` was `0` where the customer was delinquent. Used a recursive CTE, for each row from the previous step `RecursiveUpdate`, adjust `days_past_due` by subtracting 1 and join it with the next row from `BaseData` where `days_past_due` is 0. This helps to extend delinquency periods backward. Then it was just a matter of finding the start and the end of deliquency period, and handel edge cases where the customer was still deliquent. Even though this approach achieves what we want it to do, it uses a recursive cte, which will start becoming costly once the number of backfills we have to do keep increasing. This depends on the number of recursive iterations. In the worst case, it could be `O(m * k)`, where `m` is the number of rows we have to bounce back and `k` is the maximum recursion depth. Each recursive join has to process previous rows, so if there are many rows and each row might have many predecessors to check. The complexity of the final select statement will be `O(n log n)`, where `n` will be the number of rows and `log n` for sorting operation. So the final complexity will become `O(n log n + m * k)`, which can be improved, if we perform an intermediate step in the ETL pipeline of filling in the days_past_due column with the correct number of days past due for each customer, before writing the final table in the database, and then we can eleminate the recursive calculation all together, bringing the time complexity down to `O(n log n)`.
 
+## Final Solution for Q5 is the below block:
 ```SQL
 with BaseData as(
     select
